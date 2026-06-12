@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QuickBox - Daily QoL Toolkit</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI',Tahoma,Verdana,sans-serif; }
+  body { background:linear-gradient(135deg,#0f2027,#203a43,#2c5364); min-height:100vh; color:#fff; padding:20px; }
+  h1 { text-align:center; margin-bottom:6px; font-size:28px; }
+  .sub { text-align:center; opacity:0.7; margin-bottom:20px; font-size:13px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; max-width:1100px; margin:0 auto; }
+  .card { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:16px; backdrop-filter:blur(6px); }
+  .card h2 { font-size:16px; margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+  textarea, input, select { width:100%; padding:8px; border-radius:6px; border:1px solid rgba(255,255,255,0.15); background:rgba(0,0,0,0.25); color:#fff; font-size:13px; margin-bottom:8px; }
+  textarea { resize:vertical; min-height:70px; font-family:monospace; }
+  button { padding:8px 12px; border:none; border-radius:6px; background:#7f5af0; color:#fff; cursor:pointer; font-size:13px; margin-right:6px; margin-bottom:6px; }
+  button:hover { background:#9370ff; }
+  button.secondary { background:rgba(255,255,255,0.1); }
+  button.secondary:hover { background:rgba(255,255,255,0.2); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .result { background:rgba(0,0,0,0.3); padding:8px; border-radius:6px; font-family:monospace; font-size:13px; word-break:break-all; min-height:20px; }
+  .small { font-size:11px; opacity:0.6; margin-top:4px; }
+  ul#clip-list, ul#todo-list, ul#snippet-list { list-style:none; max-height:160px; overflow-y:auto; }
+  ul#clip-list li, ul#todo-list li, ul#snippet-list li { background:rgba(255,255,255,0.05); padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:12px; display:flex; justify-content:space-between; align-items:center; gap:6px; word-break:break-all; }
+  ul#clip-list li span, ul#snippet-list li span { flex:1; cursor:pointer; }
+  .todo-text.done { text-decoration:line-through; opacity:0.5; }
+  .x-btn { background:none; color:#ff8080; border:none; cursor:pointer; font-size:14px; }
+  .copy-btn { background:none; color:#8fffb0; border:none; cursor:pointer; font-size:12px; }
+  ::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.2); border-radius:3px; }
+  #toast { position:fixed; bottom:20px; right:20px; background:#2cb67d; color:#fff; padding:10px 16px; border-radius:8px; font-size:13px; opacity:0; transition:opacity .3s; pointer-events:none; }
+  #toast.show { opacity:1; }
+  .badge { background:#7f5af0; border-radius:50%; padding:2px 7px; font-size:11px; }
+</style>
+</head>
+<body>
+
+<h1>📦 QuickBox</h1>
+<div class="sub">A small toolbox of everyday quality-of-life helpers — all in one page.</div>
+
+<div class="grid">
+
+  <!-- Clipboard Manager -->
+  <div class="card">
+    <h2>📋 Clipboard History <span class="badge" id="clip-count">0</span></h2>
+    <textarea id="clip-input" placeholder="Type or paste something, then click 'Save to history'..."></textarea>
+    <div class="row">
+      <button onclick="saveClip()">Save to history</button>
+      <button class="secondary" onclick="clearClips()">Clear all</button>
+    </div>
+    <ul id="clip-list"></ul>
+    <div class="small">Click an item to copy it instantly. Stores up to 15 items, persists across visits.</div>
+  </div>
+
+  <!-- Text Tools -->
+  <div class="card">
+    <h2>✂️ Text Tools</h2>
+    <textarea id="text-input" placeholder="Paste text here..."></textarea>
+    <div class="row">
+      <button onclick="textTransform('upper')">UPPERCASE</button>
+      <button onclick="textTransform('lower')">lowercase</button>
+      <button onclick="textTransform('title')">Title Case</button>
+      <button onclick="textTransform('trim')">Trim Lines</button>
+      <button onclick="textTransform('dedupe')">Remove Duplicates</button>
+      <button onclick="textTransform('reverse')">Reverse</button>
+      <button onclick="textTransform('count')">Word/Char Count</button>
+    </div>
+    <div class="result" id="text-result">Result appears here...</div>
+    <div class="row" style="margin-top:8px;">
+      <button class="secondary" onclick="copyResult('text-result')">Copy Result</button>
+    </div>
+  </div>
+
+  <!-- Quick To-Do -->
+  <div class="card">
+    <h2>✅ Quick To-Do</h2>
+    <div class="row">
+      <input id="todo-input" placeholder="Add a task and press Enter..." onkeydown="if(event.key==='Enter')addTodo()">
+      <button onclick="addTodo()">Add</button>
+    </div>
+    <ul id="todo-list"></ul>
+    <div class="small"><span id="todo-summary">0 tasks</span></div>
+  </div>
+
+  <!-- Unit / Currency-free Converter -->
+  <div class="card">
+    <h2>📐 Unit Converter</h2>
+    <div class="row">
+      <input id="conv-value" type="number" placeholder="Value" value="1" oninput="convert()">
+      <select id="conv-type" onchange="updateUnits()">
+        <option value="length">Length</option>
+        <option value="weight">Weight</option>
+        <option value="temp">Temperature</option>
+        <option value="time">Time</option>
+        <option value="data">Data Size</option>
+      </select>
+    </div>
+    <div class="row">
+      <select id="conv-from" onchange="convert()"></select>
+      <select id="conv-to" onchange="convert()"></select>
+    </div>
+    <div class="result" id="conv-result">Result appears here...</div>
+  </div>
+
+  <!-- Password / ID Generator -->
+  <div class="card">
+    <h2>🔐 Password Generator</h2>
+    <div class="row">
+      <input id="pw-length" type="number" min="4" max="64" value="16" style="max-width:80px;">
+      <label><input type="checkbox" id="pw-symbols" checked style="width:auto;"> Symbols</label>
+      <label><input type="checkbox" id="pw-numbers" checked style="width:auto;"> Numbers</label>
+      <label><input type="checkbox" id="pw-upper" checked style="width:auto;"> Uppercase</label>
+    </div>
+    <button onclick="generatePassword()">Generate</button>
+    <button class="secondary" onclick="copyResult('pw-result')">Copy</button>
+    <div class="result" id="pw-result">Click generate...</div>
+    <div class="small" id="pw-strength"></div>
+  </div>
+
+  <!-- Snippet Vault -->
+  <div class="card">
+    <h2>💾 Snippet Vault</h2>
+    <div class="row">
+      <input id="snippet-name" placeholder="Name (e.g. 'My email')">
+    </div>
+    <textarea id="snippet-input" placeholder="Text/snippet to save (signature, address, code, etc.)"></textarea>
+    <button onclick="saveSnippet()">Save Snippet</button>
+    <ul id="snippet-list"></ul>
+    <div class="small">Click a snippet to copy it. Great for emails, addresses, signatures, repeated replies.</div>
+  </div>
+
+  <!-- Timestamp & Date Tools -->
+  <div class="card">
+    <h2>⏱️ Timestamp Tools</h2>
+    <div class="row">
+      <button onclick="insertNow()">Insert Current Date/Time</button>
+      <button class="secondary" onclick="copyResult('ts-result')">Copy</button>
+    </div>
+    <div class="result" id="ts-result">--</div>
+    <div class="row" style="margin-top:8px;">
+      <input id="ts-epoch" type="number" placeholder="Unix timestamp (seconds)">
+      <button onclick="epochToDate()">Convert</button>
+    </div>
+    <div class="result" id="epoch-result">--</div>
+  </div>
+
+  <!-- QR Code Generator -->
+  <div class="card">
+    <h2>🔗 Quick QR Code</h2>
+    <input id="qr-input" placeholder="Enter text or URL...">
+    <button onclick="generateQR()">Generate QR</button>
+    <div style="text-align:center; margin-top:8px;" id="qr-output"></div>
+    <div class="small">Generates a scannable QR code instantly — no upload, all local.</div>
+  </div>
+
+</div>
+
+<div id="toast">Copied!</div>
+
+<script>
+/* ---------- Toast ---------- */
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1500);
+}
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard!'));
+}
+function copyResult(id) {
+  const el = document.getElementById(id);
+  copyText(el.textContent);
+}
+
+/* ---------- Clipboard History ---------- */
+let clips = JSON.parse(localStorage.getItem('qb-clips') || '[]');
+function renderClips() {
+  const list = document.getElementById('clip-list');
+  list.innerHTML = '';
+  clips.forEach((c, i) => {
+    const li = document.createElement('li');
+    const span = document.createElement('span');
+    span.textContent = c.length > 60 ? c.slice(0,60) + '…' : c;
+    span.onclick = () => copyText(c);
+    const del = document.createElement('button');
+    del.className = 'x-btn'; del.textContent = '✕';
+    del.onclick = () => { clips.splice(i,1); save(); renderClips(); };
+    li.appendChild(span); li.appendChild(del);
+    list.appendChild(li);
+  });
+  document.getElementById('clip-count').textContent = clips.length;
+}
+function save() { localStorage.setItem('qb-clips', JSON.stringify(clips)); }
+function saveClip() {
+  const val = document.getElementById('clip-input').value.trim();
+  if (!val) return;
+  clips.unshift(val);
+  if (clips.length > 15) clips.pop();
+  save(); renderClips();
+  document.getElementById('clip-input').value = '';
+  showToast('Saved!');
+}
+function clearClips() { clips = []; save(); renderClips(); }
+renderClips();
+
+/* ---------- Text Tools ---------- */
+function textTransform(mode) {
+  const input = document.getElementById('text-input').value;
+  let out = '';
+  switch(mode) {
+    case 'upper': out = input.toUpperCase(); break;
+    case 'lower': out = input.toLowerCase(); break;
+    case 'title': out = input.replace(/\w\S*/g, t => t[0].toUpperCase() + t.slice(1).toLowerCase()); break;
+    case 'trim': out = input.split('\n').map(l => l.trim()).filter(l => l.length).join('\n'); break;
+    case 'dedupe': out = [...new Set(input.split('\n'))].join('\n'); break;
+    case 'reverse': out = input.split('').reverse().join(''); break;
+    case 'count':
+      const words = input.trim().split(/\s+/).filter(Boolean).length;
+      const chars = input.length;
+      const lines = input.split('\n').length;
+      out = `Words: ${words} | Characters: ${chars} | Lines: ${lines}`;
+      break;
+  }
+  document.getElementById('text-result').textContent = out;
+}
+
+/* ---------- To-Do ---------- */
+let todos = JSON.parse(localStorage.getItem('qb-todos') || '[]');
+function renderTodos() {
+  const list = document.getElementById('todo-list');
+  list.innerHTML = '';
+  todos.forEach((t, i) => {
+    const li = document.createElement('li');
+    const span = document.createElement('span');
+    span.className = 'todo-text' + (t.done ? ' done' : '');
+    span.textContent = t.text;
+    span.style.cursor = 'pointer'; span.style.flex = '1';
+    span.onclick = () => { t.done = !t.done; saveTodos(); renderTodos(); };
+    const del = document.createElement('button');
+    del.className = 'x-btn'; del.textContent = '✕';
+    del.onclick = () => { todos.splice(i,1); saveTodos(); renderTodos(); };
+    li.appendChild(span); li.appendChild(del);
+    list.appendChild(li);
+  });
+  const done = todos.filter(t=>t.done).length;
+  document.getElementById('todo-summary').textContent = `${done} / ${todos.length} done`;
+}
+function saveTodos() { localStorage.setItem('qb-todos', JSON.stringify(todos)); }
+function addTodo() {
+  const input = document.getElementById('todo-input');
+  if (!input.value.trim()) return;
+  todos.push({ text: input.value.trim(), done:false });
+  input.value = '';
+  saveTodos(); renderTodos();
+}
+renderTodos();
+
+/* ---------- Unit Converter ---------- */
+const units = {
+  length: { m:1, km:1000, cm:0.01, mm:0.001, mile:1609.34, yard:0.9144, foot:0.3048, inch:0.0254 },
+  weight: { kg:1, g:0.001, mg:0.000001, lb:0.453592, oz:0.0283495, ton:1000 },
+  time: { sec:1, min:60, hour:3600, day:86400, week:604800 },
+  data: { byte:1, KB:1024, MB:1024**2, GB:1024**3, TB:1024**4 },
+  temp: { C:'C', F:'F', K:'K' }
+};
+function updateUnits() {
+  const type = document.getElementById('conv-type').value;
+  const fromSel = document.getElementById('conv-from');
+  const toSel = document.getElementById('conv-to');
+  fromSel.innerHTML = ''; toSel.innerHTML = '';
+  Object.keys(units[type]).forEach(u => {
+    fromSel.innerHTML += `<option value="${u}">${u}</option>`;
+    toSel.innerHTML += `<option value="${u}">${u}</option>`;
+  });
+  toSel.selectedIndex = 1;
+  convert();
+}
+function convert() {
+  const type = document.getElementById('conv-type').value;
+  const val = parseFloat(document.getElementById('conv-value').value) || 0;
+  const from = document.getElementById('conv-from').value;
+  const to = document.getElementById('conv-to').value;
+  let result;
+  if (type === 'temp') {
+    let celsius;
+    if (from === 'C') celsius = val;
+    else if (from === 'F') celsius = (val - 32) * 5/9;
+    else celsius = val - 273.15;
+    if (to === 'C') result = celsius;
+    else if (to === 'F') result = celsius * 9/5 + 32;
+    else result = celsius + 273.15;
+  } else {
+    result = val * units[type][from] / units[type][to];
+  }
+  document.getElementById('conv-result').textContent = `${val} ${from} = ${parseFloat(result.toFixed(6))} ${to}`;
+}
+updateUnits();
+
+/* ---------- Password Generator ---------- */
+function generatePassword() {
+  const len = parseInt(document.getElementById('pw-length').value) || 16;
+  let chars = 'abcdefghijklmnopqrstuvwxyz';
+  if (document.getElementById('pw-upper').checked) chars += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  if (document.getElementById('pw-numbers').checked) chars += '0123456789';
+  if (document.getElementById('pw-symbols').checked) chars += '!@#$%^&*()_+-=[]{}|;:,.<>?';
+  let pw = '';
+  const arr = new Uint32Array(len);
+  crypto.getRandomValues(arr);
+  for (let i=0;i<len;i++) pw += chars[arr[i] % chars.length];
+  document.getElementById('pw-result').textContent = pw;
+  const strength = len >= 16 ? 'Strong' : len >= 10 ? 'Medium' : 'Weak';
+  document.getElementById('pw-strength').textContent = `Strength: ${strength} (${len} chars)`;
+}
+
+/* ---------- Snippet Vault ---------- */
+let snippets = JSON.parse(localStorage.getItem('qb-snippets') || '[]');
+function renderSnippets() {
+  const list = document.getElementById('snippet-list');
+  list.innerHTML = '';
+  snippets.forEach((s, i) => {
+    const li = document.createElement('li');
+    const span = document.createElement('span');
+    span.textContent = `${s.name}: ${s.text.length > 30 ? s.text.slice(0,30)+'…' : s.text}`;
+    span.onclick = () => copyText(s.text);
+    const del = document.createElement('button');
+    del.className = 'x-btn'; del.textContent = '✕';
+    del.onclick = () => { snippets.splice(i,1); saveSnippets(); renderSnippets(); };
+    li.appendChild(span); li.appendChild(del);
+    list.appendChild(li);
+  });
+}
+function saveSnippets() { localStorage.setItem('qb-snippets', JSON.stringify(snippets)); }
+function saveSnippet() {
+  const name = document.getElementById('snippet-name').value.trim();
+  const text = document.getElementById('snippet-input').value.trim();
+  if (!name || !text) return;
+  snippets.push({ name, text });
+  saveSnippets(); renderSnippets();
+  document.getElementById('snippet-name').value = '';
+  document.getElementById('snippet-input').value = '';
+  showToast('Snippet saved!');
+}
+renderSnippets();
+
+/* ---------- Timestamp Tools ---------- */
+function insertNow() {
+  document.getElementById('ts-result').textContent = new Date().toString();
+}
+function epochToDate() {
+  const val = parseFloat(document.getElementById('ts-epoch').value);
+  if (isNaN(val)) { document.getElementById('epoch-result').textContent = 'Invalid input'; return; }
+  document.getElementById('epoch-result').textContent = new Date(val * 1000).toString();
+}
+
+/* ---------- QR Code (no external libs, simple canvas-based) ---------- */
+function generateQR() {
+  const text = document.getElementById('qr-input').value.trim();
+  const output = document.getElementById('qr-output');
+  output.innerHTML = '';
+  if (!text) return;
+  const img = document.createElement('img');
+  img.src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(text)}`;
+  img.alt = 'QR Code';
+  img.style.borderRadius = '8px';
+  img.style.background = '#fff';
+  img.style.padding = '8px';
+  output.appendChild(img);
+}
+</script>
+</body>
+</html>
